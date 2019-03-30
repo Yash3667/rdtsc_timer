@@ -62,23 +62,12 @@ volatile static unsigned int __timer_error;
 static unsigned long
 __timer_processor_frequency()
 {
-    int cpu_info[4];
-
-    __cpuid(0, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
-    if (cpu_info[0] >= 0x16) {
-        __cpuid(0x16, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
-        return cpu_info[1];
-    }
-
-    // Only newer processors support the 0x16 function of
-    // 'cpuid'. If running on an older processor, OS help is
-    // required to figure out the nominal CPU frequency.
-
 #ifdef __APPLE__
     unsigned long freq;
     size_t len = sizeof(freq);
     sysctlbyname("hw.cpufrequency_max", &freq, &len, NULL, 0);
     return freq;
+
 #elif __linux__
     // This part is dumb, but far as I know, this is the only
     // way to obtain CPU frequency in Linux since the OS does

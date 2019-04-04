@@ -28,6 +28,14 @@ _getTime(struct timespec start)
     return time_passed / 1000000000.0;
 }
 
+static void
+sum_test(long n)
+{
+    long i;
+    for (i = 0; i < n; i++) {
+    }
+}
+
 int
 main(void)
 {
@@ -39,39 +47,52 @@ main(void)
         return -1;
     }
 
-    // clock_gettime.
-    INIT_TIME(&timespec_stamp);
-    usleep(1);
-    printf("(get_time)  Sleep [1us]: %.9lf seconds\n", GET_TIME(timespec_stamp));
-
-    INIT_TIME(&timespec_stamp);
-    usleep(1000);
-    printf("(get_time)  Sleep [1ms]: %.9lf seconds\n", GET_TIME(timespec_stamp));
-
-    INIT_TIME(&timespec_stamp);
-    usleep(1000000);
-    printf("(get_time)  Sleep [1s] : %.9lf seconds\n\n", GET_TIME(timespec_stamp));
+    // Warm cache and CPU.
+    sum_test(1000);
 
     // rdtsc_timer TIME_FUNCTION.
-    printf("(Function)  Sleep [1us]: %.9lf seconds\n", TIME_FUNCTION(usleep, 1));
-    printf("(Function)  Sleep [1ms]: %.9lf seconds\n", TIME_FUNCTION(usleep, 1000));
-    printf("(Function)  Sleep [1s] : %.9lf seconds\n\n", TIME_FUNCTION(usleep, 1000000));
+    printf("(Function)  [1] : %.9lf seconds\n", TIME_FUNCTION(sum_test, 1));
+    printf("(Function)  [1K]: %.9lf seconds\n", TIME_FUNCTION(sum_test, 1 << 10));
+    printf("(Function)  [1M]: %.9lf seconds\n", TIME_FUNCTION(sum_test, 1 << 20));
+    printf("(Function)  [1B]: %.9lf seconds\n\n", TIME_FUNCTION(sum_test, 1 << 30));
 
     // rdtsc_timer TIME_STAMP.
     start = TIME_STAMP();
-    usleep(1);
+    sum_test(1);
     end = TIME_STAMP();
-    printf("(Timestamp) Sleep [1us]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
+    printf("(Timestamp) [1] : %.9lf seconds\n", rdtsc_timer_diff(start, end));
 
     start = TIME_STAMP();
-    usleep(1000);
+    sum_test(1 << 10);
     end = TIME_STAMP();
-    printf("(Timestamp) Sleep [1ms]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
+    printf("(Timestamp) [1K]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
 
     start = TIME_STAMP();
-    usleep(1000000);
+    sum_test(1 << 20);
     end = TIME_STAMP();
-    printf("(Timestamp) Sleep [1s] : %.9lf seconds\n", rdtsc_timer_diff(start, end));
+    printf("(Timestamp) [1M]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
+
+    start = TIME_STAMP();
+    sum_test(1 << 30);
+    end = TIME_STAMP();
+    printf("(Timestamp) [1B]: %.9lf seconds\n\n", rdtsc_timer_diff(start, end));
+
+    // clock_gettime.
+    INIT_TIME(&timespec_stamp);
+    sum_test(1);
+    printf("(get_time)  [1] : %.9lf seconds\n", GET_TIME(timespec_stamp));
+
+    INIT_TIME(&timespec_stamp);
+    sum_test(1 << 10);
+    printf("(get_time)  [1K]: %.9lf seconds\n", GET_TIME(timespec_stamp));
+
+    INIT_TIME(&timespec_stamp);
+    sum_test(1 << 20);
+    printf("(get_time)  [1M]: %.9lf seconds\n", GET_TIME(timespec_stamp));
+
+    INIT_TIME(&timespec_stamp);
+    sum_test(1 << 30);
+    printf("(get_time)  [1B]: %.9lf seconds\n", GET_TIME(timespec_stamp));
 
     return 0;
 }

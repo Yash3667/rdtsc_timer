@@ -14,8 +14,8 @@
 #error "x86 intrinsics not available"
 #endif
 
-#ifndef TIMER_H
-#define TIMER_H
+#ifndef RDTSC_TIMER_H
+#define RDTSC_TIMER_H
 
 // clang-format off
 #ifndef __KERNEL__
@@ -250,4 +250,4 @@ rdtsc_timer_diff(unsigned long start, unsigned long end)
     return sec / __cpu_freq;
 }
 
-#endif
+#endif /* RDTSC_TIMER_H */

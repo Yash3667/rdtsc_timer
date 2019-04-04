@@ -112,47 +112,6 @@ static unsigned long __other_overhead;
 static timer_status_bits __timer_status;
 
 /**
- * Call by itself to set up the timing
- * environment.
- */
-__attribute__((constructor)) static void
-__timer_constructor(void)
-{
-    unsigned int cpu_core;
-    int cpu_info[4];
-
-    __cpu_freq = (double)__timer_processor_frequency();
-    if (!__cpu_freq) {
-        __timer_status = TIMER_ERR_CPU_FREQ;
-        return;
-    }
-
-    // Determine rdtscp support.
-    __cpuid(0x80000001, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
-    if (cpu_info[3] & (1 << 27)) {
-        __rdtscp_support = 1;
-    } else {
-        // TODO: Support cpuid + rdtsc.
-        __timer_status = TIMER_ERR_RDTSCP_SUPPORT;
-        return;
-    }
-
-    // TODO: Calibrate overhead.
-    //  -> Calculate cost of calling rdtscp (__instruction_overhead).
-    //  -> If rdtscp support is not present, then calculate cost of using cpuid for serialization
-    //     (__instruction_overhead).
-    //  -> When using 'TIME_STAMP', overhead for making an 'if' comparison and setting a variable
-    //     value need to be recorded in '__other_overhead'.
-
-    // Calculate and maintain the default CPU affinity mask.
-#ifdef __linux__
-    sched_getaffinity(0, sizeof(cpu_set_t), &__default_cpu_mask);
-#endif
-
-    __timer_status = TIMER_READY;
-}
-
-/**
  * Pin thread to the CPU core it is executing on.
  * CPU pinning is not supported on: MacOS.
  */
@@ -241,6 +200,47 @@ rdtsc_timer_diff(unsigned long start, unsigned long end)
 
     sec = (double)(end - start) - (__instruction_overhead + __other_overhead);
     return sec / __cpu_freq;
+}
+
+/**
+ * Call by itself to set up the timing
+ * environment.
+ */
+__attribute__((constructor)) static void
+__timer_constructor(void)
+{
+    unsigned int cpu_core;
+    int cpu_info[4];
+
+    __cpu_freq = (double)__timer_processor_frequency();
+    if (!__cpu_freq) {
+        __timer_status = TIMER_ERR_CPU_FREQ;
+        return;
+    }
+
+    // Determine rdtscp support.
+    __cpuid(0x80000001, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
+    if (cpu_info[3] & (1 << 27)) {
+        __rdtscp_support = 1;
+    } else {
+        // TODO: Support cpuid + rdtsc.
+        __timer_status = TIMER_ERR_RDTSCP_SUPPORT;
+        return;
+    }
+
+    // TODO: Calibrate overhead.
+    //  -> Calculate cost of calling rdtscp (__instruction_overhead).
+    //  -> If rdtscp support is not present, then calculate cost of using cpuid for serialization
+    //     (__instruction_overhead).
+    //  -> When using 'TIME_STAMP', overhead for making an 'if' comparison and setting a variable
+    //     value need to be recorded in '__other_overhead'.
+
+    // Calculate and maintain the default CPU affinity mask.
+#ifdef __linux__
+    sched_getaffinity(0, sizeof(cpu_set_t), &__default_cpu_mask);
+#endif
+
+    __timer_status = TIMER_READY;
 }
 
 #endif /* RDTSC_TIMER_H */

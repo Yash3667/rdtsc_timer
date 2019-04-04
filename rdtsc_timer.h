@@ -6,6 +6,9 @@
  * Copyright: This code is made public using the MIT License.
  */
 
+// Feature set macros (Hopefully these don't clash).
+#define _GNU_SOURCE
+
 #if !defined(__amd64) && !defined(__i386)
 #error "Architecture not supported"
 #endif
@@ -17,37 +20,27 @@
 #ifndef RDTSC_TIMER_H
 #define RDTSC_TIMER_H
 
-// clang-format off
-#ifndef __KERNEL__
-    #ifdef __linux__
-        #define _GNU_SOURCE
-        #include <sched.h>
-        #include <unistd.h>
-        #include <fcntl.h>
-        #include <stdio.h>
-    #endif
-
-    #ifdef __APPLE__
-        #include <sys/types.h>
-        #include <sys/sysctl.h>
-    #endif
-
-    #include <stdint.h>
-    #include <stdio.h>
-    #include <x86intrin.h>
-#else
-    #error "Kernel not supported yet"
-#endif
-
 #if __has_include(<cpuid.h>)
-    #include <cpuid.h>
+#include <cpuid.h>
 #else
-#define __cpuid(level, a, b, c, d)              \
-__asm__("cpuid\n\t"                             \
-        : "=a"(a), "=b"(b), "=c"(c), "=d"(d)    \
-        : "0"(level))
+#define __cpuid(level, a, b, c, d)               \
+    __asm__("cpuid\n\t"                          \
+            : "=a"(a), "=b"(b), "=c"(c), "=d"(d) \
+            : "0"(level))
 #endif
-// clang-format on
+
+#ifndef __KERNEL__
+#include <fcntl.h>
+#include <sched.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/sysctl.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <x86intrin.h>
+#else
+#error "Kernel not supported yet"
+#endif
 
 typedef enum timer_status_bits {
     TIMER_READY = 0,

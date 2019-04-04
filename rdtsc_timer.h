@@ -104,6 +104,21 @@ __timer_processor_frequency()
 #endif
 }
 
+/**
+ * Calibrate the overhead of using the timer instruction
+ * and other things.
+ */
+static void
+__timer_calibrate(void)
+{
+    // TODO: Calibrate overhead.
+    //  -> Calculate cost of calling rdtscp (__instruction_overhead).
+    //  -> If rdtscp support is not present, then calculate cost of using cpuid for serialization
+    //     (__instruction_overhead).
+    //  -> When using 'TIME_STAMP', overhead for making an 'if' comparison and setting a variable
+    //     value need to be recorded in '__other_overhead'.
+}
+
 // Globals.
 static int __rdtscp_support;
 static double __cpu_freq;
@@ -228,12 +243,8 @@ __timer_constructor(void)
         return;
     }
 
-    // TODO: Calibrate overhead.
-    //  -> Calculate cost of calling rdtscp (__instruction_overhead).
-    //  -> If rdtscp support is not present, then calculate cost of using cpuid for serialization
-    //     (__instruction_overhead).
-    //  -> When using 'TIME_STAMP', overhead for making an 'if' comparison and setting a variable
-    //     value need to be recorded in '__other_overhead'.
+    // Calibrate overhead.
+    __timer_calibrate();
 
     // Calculate and maintain the default CPU affinity mask.
 #ifdef __linux__

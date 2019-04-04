@@ -52,7 +52,7 @@ typedef enum timer_status_bits {
  * Acquire the nominal frequency at which the
  * CPU operates.
  * 
- * Returns in MHz, or -1 for error.
+ * Returns in Hz, or 0 for error.
  */
 static unsigned long
 __timer_processor_frequency()

@@ -9,10 +9,10 @@ EXEC = function_test paging_test
 all: function_test paging_test
 
 function_test: function_test.c
-	$(CC) -o function_test -g $(CFLAGS) function_test.c
+	$(CC) -o function_test -g $(CFLAGS) function_test.c -lm
 
 paging_test: paging_test.c
-	$(CC) -o paging_test -g $(CFLAGS) paging_test.c
+	$(CC) -o paging_test -g $(CFLAGS) paging_test.c -lm
 
 clean:
 	rm -rf $(EXEC) *.dSYM

@@ -13,6 +13,7 @@
 #error "Architecture not supported"
 #endif
 
+// TODO: Get rid of:
 #if !__has_include(<x86intrin.h>)
 #error "x86 intrinsics not available"
 #endif
@@ -20,14 +21,10 @@
 #ifndef RDTSC_TIMER_H
 #define RDTSC_TIMER_H
 
-#if __has_include(<cpuid.h>)
-#include <cpuid.h>
-#else
 #define __cpuid(level, a, b, c, d)               \
     __asm__("cpuid\n\t"                          \
             : "=a"(a), "=b"(b), "=c"(c), "=d"(d) \
             : "0"(level))
-#endif
 
 #ifndef __KERNEL__
 #include <fcntl.h>
@@ -308,6 +305,8 @@ __timer_reset_affinity(void)
 /**
  * Use this function when timestamps are acquired through
  * 'RDTSC_TIMER_START/END' macros.
+ * 
+ * A value of zero means less than 1ns.
  */
 static inline double
 rdtsc_timer_diff(unsigned long start, unsigned long end)
@@ -319,6 +318,10 @@ rdtsc_timer_diff(unsigned long start, unsigned long end)
     }
 
     sec = (double)(end - start) - __instruction_overhead;
+    if (sec < 0) {
+        sec = 0;
+    }
+
     return sec / __cpu_freq;
 }
 

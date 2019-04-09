@@ -42,8 +42,8 @@ main(void)
     unsigned long start, end;
     struct timespec timespec_stamp;
 
-    if (__timer_status) {
-        fprintf(stderr, "Timer not ready: %d\n", __timer_status);
+    if (rdtsc_timer_status()) {
+        fprintf(stderr, "Timer error: %d\n", rdtsc_timer_status());
         return -1;
     }
 

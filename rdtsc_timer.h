@@ -1,6 +1,6 @@
 /**
  * A library to obtain high precision timers through
- * the time stamp counter in Intel and AMD CPUs.
+ * the serialized time stamp counter in Intel and AMD CPUs.
  * 
  * Author: Yash Gupta <yash_gupta12@live.com>
  * Copyright: This code is made public using the MIT License.
@@ -31,6 +31,7 @@
 
 #ifndef __KERNEL__
 #include <fcntl.h>
+#include <math.h>
 #include <sched.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -42,11 +43,12 @@
 #error "Kernel not supported yet"
 #endif
 
-typedef enum timer_status_bits {
-    TIMER_READY = 0,
-    TIMER_ERR_CPU_FREQ,
-    TIMER_ERR_RDTSCP_SUPPORT,
-} timer_status_bits;
+enum {
+    RDTSC_TIMER_READY = 0,
+    RDTSC_TIMER_ERR_CPU_FREQ,
+    RDTSC_TIMER_ERR_RDTSCP_SUPPORT,
+    RDTSC_TIMER_ERR_MEASUREMENT,
+};
 
 /**
  * Acquire the nominal frequency at which the
@@ -104,27 +106,123 @@ __timer_processor_frequency()
 #endif
 }
 
+// Globals.
+static double __cpu_freq;
+static unsigned long __instruction_overhead;
+static unsigned int __timer_status;
+static unsigned int __timer_error;
+
+/**
+ * Calculate standard deviation of an array set.
+ */
+static double
+__timer_calculate_dev(unsigned long *set, unsigned long set_length, double mean)
+{
+    unsigned long i;
+    double mean_diff;
+    double variance, dev;
+
+    variance = 0.0;
+    for (i = 0; i < set_length; i++) {
+        mean_diff = set[i] - mean;
+        variance += (mean_diff * mean_diff);
+    }
+    variance /= set_length;
+
+    return sqrt(variance);
+}
+
+/**
+ * Calculate the margin of error on 95% confidence
+ * interval.
+ */
+static double
+__timer_calculate_error(unsigned long *set, unsigned long set_length, double mean)
+{
+    const double z_coefficient = 1.96;
+    double dev;
+
+    dev = __timer_calculate_dev(set, set_length, mean);
+    return z_coefficient * (dev / sqrt(set_length));
+}
+
+/**
+ * Calculate average of an array set.
+ */
+static double
+__timer_calculate_mean(unsigned long *set, unsigned long set_length)
+{
+    unsigned long i;
+    double average;
+
+    average = 0.0;
+    for (i = 0; i < set_length; i++) {
+        average += set[i];
+    }
+    average /= set_length;
+
+    return average;
+}
+
 /**
  * Calibrate the overhead of using the timer instruction
  * and other things.
+ * 
+ * TODO: Move 'timing' array to dynamic allocation to
+ * allow for use on a kernel stack.
  */
 static void
 __timer_calibrate(void)
 {
-    // TODO: Calibrate overhead.
-    //  -> Calculate cost of calling rdtscp (__instruction_overhead).
-    //  -> If rdtscp support is not present, then calculate cost of using cpuid for serialization
-    //     (__instruction_overhead).
-    //  -> When using 'TIME_STAMP', overhead for making an 'if' comparison and setting a variable
-    //     value need to be recorded in '__other_overhead'.
-}
+    const unsigned long repeat_factor = 1000000;
+    unsigned long i;
+    unsigned long start, end, timing[repeat_factor];
+    unsigned int temp;
+    int ci_temp[4];
+    double mean;
+    double error;
 
-// Globals.
-static int __rdtscp_support;
-static double __cpu_freq;
-static unsigned long __instruction_overhead;
-static unsigned long __other_overhead;
-static timer_status_bits __timer_status;
+    // Warm CPU cache by calling instruction sequence three times.
+    // 1.
+    __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+    start = __rdtsc();
+    end = __rdtscp(&temp);
+    __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+
+    // 2.
+    __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+    start = __rdtsc();
+    end = __rdtscp(&temp);
+    __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+
+    // 3.
+    __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+    start = __rdtsc();
+    end = __rdtscp(&temp);
+    __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+
+    for (i = 0; i < repeat_factor; i++) {
+        __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+        start = __rdtsc();
+        end = __rdtscp(&temp);
+        __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);
+        timing[i] = end - start;
+    }
+
+    mean = __timer_calculate_mean(timing, repeat_factor);
+    error = __timer_calculate_error(timing, repeat_factor, mean);
+
+    __instruction_overhead = mean;
+    if (error <= (mean / 100.0)) {
+        __timer_error = 1;
+    } else if (error <= (mean / 50.0)) {
+        __timer_error = 2;
+    } else if (error <= (mean / 33.34)) {
+        __timer_error = 3;
+    } else {
+        __timer_status = RDTSC_TIMER_ERR_MEASUREMENT;
+    }
+}
 
 /**
  * Pin thread to the CPU core it is executing on.
@@ -161,48 +259,55 @@ __timer_reset_affinity(void)
  * Time the calling of a single function. This pins the
  * calling thread to the current CPU core it is executing on.
  */
-#define TIME_FUNCTION(func, ...)                                                     \
-    ({                                                                               \
-        double ret;                                                                  \
-        unsigned long start, end;                                                    \
-        unsigned int temp;                                                           \
-        if (__timer_status) {                                                        \
-            ret = -1.0;                                                              \
-        } else {                                                                     \
-            if (__rdtscp_support) {                                                  \
-                __timer_set_affinity();                                              \
-                start = __rdtscp(&temp);                                             \
-                func(__VA_ARGS__);                                                   \
-                end = __rdtscp(&temp);                                               \
-                __timer_reset_affinity();                                            \
-                ret = ((double)(end - start) - __instruction_overhead) / __cpu_freq; \
-            } else {                                                                 \
-                ret = -1.0;                                                          \
-            }                                                                        \
-        }                                                                            \
-        ret;                                                                         \
+#define RDTSC_TIMER_FUNCTION(func, ...)                                          \
+    ({                                                                           \
+        double ret;                                                              \
+        unsigned long start, end;                                                \
+        unsigned int temp;                                                       \
+        int ci_temp[4];                                                          \
+        if (__timer_status) {                                                    \
+            ret = -1.0;                                                          \
+        } else {                                                                 \
+            __timer_set_affinity();                                              \
+            __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);          \
+            start = __rdtsc();                                                   \
+            func(__VA_ARGS__);                                                   \
+            end = __rdtscp(&temp);                                               \
+            __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]);          \
+            __timer_reset_affinity();                                            \
+            ret = ((double)(end - start) - __instruction_overhead) / __cpu_freq; \
+        }                                                                        \
+        ret;                                                                     \
     })
 
 /**
- * This macro is used when you may want to time an arbitrary
- * code block. Since this can include multiple threads, no 
- * threads are pinned to a single core.
+ * These macros are used to time stamp an arbitrary
+ * code block. Since these can include multiple threads,
+ * no threads are pinned to cores.
+ * 
+ * NOTE: No status checks are made, if the CPU does not support
+ * the instruction, these may result in a segmentation fault.
  */
-#define TIME_STAMP()               \
-    ({                             \
-        unsigned int temp;         \
-        unsigned long ret;         \
-        if (__rdtscp_support) {    \
-            ret = __rdtscp(&temp); \
-        } else {                   \
-            ret = 0.0;             \
-        }                          \
-        ret;                       \
+#define RDTSC_TIMER_START()                                         \
+    ({                                                              \
+        int ci_temp[4];                                             \
+        __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]); \
+        __rdtsc();                                                  \
+    })
+
+#define RDTSC_TIMER_END()                                           \
+    ({                                                              \
+        unsigned long ret;                                          \
+        unsigned int temp;                                          \
+        int ci_temp[4];                                             \
+        ret = __rdtscp(&temp);                                      \
+        __cpuid(0, ci_temp[0], ci_temp[1], ci_temp[2], ci_temp[3]); \
+        ret;                                                        \
     })
 
 /**
  * Use this function when timestamps are acquired through
- * 'TIME_STAMP' macro.
+ * 'RDTSC_TIMER_START/END' macros.
  */
 static inline double
 rdtsc_timer_diff(unsigned long start, unsigned long end)
@@ -213,7 +318,7 @@ rdtsc_timer_diff(unsigned long start, unsigned long end)
         return -1.0;
     }
 
-    sec = (double)(end - start) - (__instruction_overhead + __other_overhead);
+    sec = (double)(end - start) - __instruction_overhead;
     return sec / __cpu_freq;
 }
 
@@ -229,17 +334,14 @@ __timer_constructor(void)
 
     __cpu_freq = (double)__timer_processor_frequency();
     if (!__cpu_freq) {
-        __timer_status = TIMER_ERR_CPU_FREQ;
+        __timer_status = RDTSC_TIMER_ERR_CPU_FREQ;
         return;
     }
 
     // Determine rdtscp support.
     __cpuid(0x80000001, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
-    if (cpu_info[3] & (1 << 27)) {
-        __rdtscp_support = 1;
-    } else {
-        // TODO: Support cpuid + rdtsc.
-        __timer_status = TIMER_ERR_RDTSCP_SUPPORT;
+    if (!(cpu_info[3] & (1 << 27))) {
+        __timer_status = RDTSC_TIMER_ERR_RDTSCP_SUPPORT;
         return;
     }
 
@@ -251,7 +353,39 @@ __timer_constructor(void)
     sched_getaffinity(0, sizeof(cpu_set_t), &__default_cpu_mask);
 #endif
 
-    __timer_status = TIMER_READY;
+    __timer_status = RDTSC_TIMER_READY;
+}
+
+/**
+ * Acquire the timer status.
+ */
+static inline unsigned int
+rdtsc_timer_status()
+{
+    return __timer_status;
+}
+
+/**
+ * Acquire the timer precision in ns.
+ */
+static inline double
+rdtsc_timer_precision()
+{
+    return 1.0 / (__cpu_freq / 1000000000.0);
+}
+
+/**
+ * Acquire the error of margin in timer
+ * measurement.
+ * 
+ * 1: Below 1%.
+ * 2: Below 2%.
+ * 3: Below 3%.
+ */
+static inline unsigned int
+rdtsc_timer_error()
+{
+    return __timer_error;
 }
 
 #endif /* RDTSC_TIMER_H */

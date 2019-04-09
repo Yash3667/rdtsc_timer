@@ -47,52 +47,55 @@ main(void)
         return -1;
     }
 
+    printf("Timer Precision: %lf ns\n", rdtsc_timer_precision());
+    printf("Timer Error: Below %u%%\n\n", rdtsc_timer_error());
+
     // Warm cache and CPU.
     sum_test(1000);
 
-    // rdtsc_timer TIME_FUNCTION.
-    printf("(Function)  [1] : %.9lf seconds\n", TIME_FUNCTION(sum_test, 1));
-    printf("(Function)  [1K]: %.9lf seconds\n", TIME_FUNCTION(sum_test, 1 << 10));
-    printf("(Function)  [1M]: %.9lf seconds\n", TIME_FUNCTION(sum_test, 1 << 20));
-    printf("(Function)  [1B]: %.9lf seconds\n\n", TIME_FUNCTION(sum_test, 1 << 30));
+    // rdtsc_timer RDTSC_TIMER_FUNCTION.
+    printf("(rdtsc_timer_function) [1] : %.9lf seconds\n", RDTSC_TIMER_FUNCTION(sum_test, 1));
+    printf("(rdtsc_timer_function) [1K]: %.9lf seconds\n", RDTSC_TIMER_FUNCTION(sum_test, 1 << 10));
+    printf("(rdtsc_timer_function) [1M]: %.9lf seconds\n", RDTSC_TIMER_FUNCTION(sum_test, 1 << 20));
+    printf("(rdtsc_timer_function) [1B]: %.9lf seconds\n\n", RDTSC_TIMER_FUNCTION(sum_test, 1 << 30));
 
-    // rdtsc_timer TIME_STAMP.
-    start = TIME_STAMP();
+    // rdtsc_timer RDTSC_TIMER_START.
+    start = RDTSC_TIMER_START();
     sum_test(1);
-    end = TIME_STAMP();
-    printf("(Timestamp) [1] : %.9lf seconds\n", rdtsc_timer_diff(start, end));
+    end = RDTSC_TIMER_END();
+    printf("(rdtsc_timer_stamp) [1] : %.9lf seconds\n", rdtsc_timer_diff(start, end));
 
-    start = TIME_STAMP();
+    start = RDTSC_TIMER_START();
     sum_test(1 << 10);
-    end = TIME_STAMP();
-    printf("(Timestamp) [1K]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
+    end = RDTSC_TIMER_END();
+    printf("(rdtsc_timer_stamp) [1K]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
 
-    start = TIME_STAMP();
+    start = RDTSC_TIMER_START();
     sum_test(1 << 20);
-    end = TIME_STAMP();
-    printf("(Timestamp) [1M]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
+    end = RDTSC_TIMER_END();
+    printf("(rdtsc_timer_stamp) [1M]: %.9lf seconds\n", rdtsc_timer_diff(start, end));
 
-    start = TIME_STAMP();
+    start = RDTSC_TIMER_START();
     sum_test(1 << 30);
-    end = TIME_STAMP();
-    printf("(Timestamp) [1B]: %.9lf seconds\n\n", rdtsc_timer_diff(start, end));
+    end = RDTSC_TIMER_END();
+    printf("(rdtsc_timer_stamp) [1B]: %.9lf seconds\n\n", rdtsc_timer_diff(start, end));
 
     // clock_gettime.
     INIT_TIME(&timespec_stamp);
     sum_test(1);
-    printf("(get_time)  [1] : %.9lf seconds\n", GET_TIME(timespec_stamp));
+    printf("(get_time) [1] : %.9lf seconds\n", GET_TIME(timespec_stamp));
 
     INIT_TIME(&timespec_stamp);
     sum_test(1 << 10);
-    printf("(get_time)  [1K]: %.9lf seconds\n", GET_TIME(timespec_stamp));
+    printf("(get_time) [1K]: %.9lf seconds\n", GET_TIME(timespec_stamp));
 
     INIT_TIME(&timespec_stamp);
     sum_test(1 << 20);
-    printf("(get_time)  [1M]: %.9lf seconds\n", GET_TIME(timespec_stamp));
+    printf("(get_time) [1M]: %.9lf seconds\n", GET_TIME(timespec_stamp));
 
     INIT_TIME(&timespec_stamp);
     sum_test(1 << 30);
-    printf("(get_time)  [1B]: %.9lf seconds\n", GET_TIME(timespec_stamp));
+    printf("(get_time) [1B]: %.9lf seconds\n", GET_TIME(timespec_stamp));
 
     return 0;
 }

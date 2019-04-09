@@ -10,12 +10,17 @@
 #include <stdlib.h>
 #include <time.h>
 
-// 16MB.
-#define CACHE_SIZE_BYTES (4 * (PAGE_SIZE * 1024))
-#define CACHE_SIZE_WORDS (CACHE_SIZE_BYTES / 4)
+// Page size.
+#ifndef PAGE_SIZE
+#define PAGE_SIZE 4096
+#endif
 
 // Pages to allocate for testing.
 #define NUM_PAGES 3
+
+// 16MB.
+#define CACHE_SIZE_BYTES (4 * (PAGE_SIZE * 1024))
+#define CACHE_SIZE_WORDS (CACHE_SIZE_BYTES / 4)
 
 /**
  * Fill all three levels of caches with trash.

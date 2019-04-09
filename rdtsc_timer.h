@@ -47,6 +47,12 @@ enum {
     RDTSC_TIMER_ERR_MEASUREMENT,
 };
 
+// Globals.
+static double __cpu_freq;
+static unsigned long __instruction_overhead;
+volatile static unsigned int __timer_status;
+volatile static unsigned int __timer_error;
+
 /**
  * Acquire the nominal frequency at which the
  * CPU operates.
@@ -102,12 +108,6 @@ __timer_processor_frequency()
     return 0;
 #endif
 }
-
-// Globals.
-static double __cpu_freq;
-static unsigned long __instruction_overhead;
-static unsigned int __timer_status;
-static unsigned int __timer_error;
 
 /**
  * Calculate standard deviation of an array set.
